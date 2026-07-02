@@ -8,7 +8,6 @@
 import os
 import time
 from pathlib import Path
-from playwright.sync_api import sync_playwright, TimeoutError as PWTimeout
 
 SESSION_DIR = Path("./sessions")
 SESSION_DIR.mkdir(exist_ok=True)
@@ -20,6 +19,7 @@ def _session_path(naver_id: str) -> Path:
 
 def login_and_save_session(naver_id: str, naver_pw: str, wait_for_2fa: int = 30) -> dict:
     """최초 1회 로그인 후 세션 저장. 2FA/캡차는 열린 창에서 사람이 처리."""
+    from playwright.sync_api import sync_playwright, TimeoutError as PWTimeout
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=False)
         ctx = browser.new_context()
@@ -52,6 +52,7 @@ def publish_to_naver(naver_id: str, title: str, body: str,
                      image_paths: list[str] | None = None,
                      headless: bool = True) -> dict:
     """저장된 세션으로 발행. 세션 없으면 먼저 login_and_save_session 호출 필요."""
+    from playwright.sync_api import sync_playwright, TimeoutError as PWTimeout
     session = _session_path(naver_id)
     if not session.exists():
         return {"ok": False, "error": "세션 없음 — login_and_save_session 먼저 실행"}
