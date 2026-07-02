@@ -1,64 +1,29 @@
-// ── Firebase 설정 ─────────────────────────────────────────────
-// Firebase Console → 프로젝트 설정 → 일반 → 웹 API 키
-const FIREBASE_WEB_API_KEY = 'AIzaSyA5PnhBcZf_TcGvH9vbPi26a6hWksLGwWs';
-// Firebase Console → 프로젝트 설정 → 일반 → 프로젝트 ID
-const FIREBASE_PROJECT_ID  = 'autoblog-9d026';
-
-const CF_BASE = `https://us-central1-${FIREBASE_PROJECT_ID}.cloudfunctions.net`;
-
-const AUTH_URL    = `https://identitytoolkit.googleapis.com/v1/accounts`;
-const REFRESH_URL = `https://securetoken.googleapis.com/v1/token`;
+const BACKEND = 'https://obl-blog-api.onrender.com';
 
 const ENDPOINTS = {
-  suggestTitles: `${CF_BASE}/bw_suggest_titles`,
-  generate:      `${CF_BASE}/bw_generate`,
-  generateImage: `${CF_BASE}/bw_generate_image`,
+  signup:        `${BACKEND}/auth/signup`,
+  login:         `${BACKEND}/auth/login`,
+  me:            `${BACKEND}/auth/me`,
+  generate:      `${BACKEND}/manuscripts/generate`,
+  suggestTitles: `${BACKEND}/manuscripts/suggest-titles`,
 };
 
-let token      = '';
+let token = '';
 let _abortCtrl = null;
 let _pendingManuscript = null;
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 /* ── 초기화 ─────────────────────────────────────────────── */
 async function init() {
-  const s = await chrome.storage.local.get(['bw_token','bw_email','bw_refresh','bw_token_exp']);
-  if (s.bw_token) {
-    token = s.bw_token;
-    // 토큰 만료 10분 전이면 자동 갱신
-    if (s.bw_refresh && s.bw_token_exp && (s.bw_token_exp - Date.now() < 10 * 60 * 1000)) {
-      try { await refreshIdToken(s.bw_refresh); } catch {}
-    }
+  const s = await chrome.storage.local.get(['bw_token', 'bw_email']);
+  token = s.bw_token || '';
+  if (token) {
     $('status-text').textContent = s.bw_email || '';
     showPage('main');
   } else {
     showPage('auth');
   }
   bindEvents();
-}
-
-/* ── 토큰 갱신 ──────────────────────────────────────────── */
-async function refreshIdToken(refreshToken) {
-  const r = await fetch(`${REFRESH_URL}?key=${FIREBASE_WEB_API_KEY}`, {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({grant_type: 'refresh_token', refresh_token: refreshToken}),
-  });
-  if (!r.ok) throw new Error('토큰 갱신 실패');
-  const d = await r.json();
-  token = d.id_token;
-  await chrome.storage.local.set({
-    bw_token:     d.id_token,
-    bw_refresh:   d.refresh_token,
-    bw_token_exp: Date.now() + parseInt(d.expires_in, 10) * 1000,
-  });
-}
-
-async function ensureFreshToken() {
-  const s = await chrome.storage.local.get(['bw_refresh','bw_token_exp']);
-  if (s.bw_refresh && s.bw_token_exp && (s.bw_token_exp - Date.now() < 5 * 60 * 1000)) {
-    await refreshIdToken(s.bw_refresh);
-  }
 }
 
 function bindEvents() {
@@ -90,13 +55,24 @@ function showLoading(step) {
 
 /* ── API ─────────────────────────────────────────────────── */
 async function apiFetch(method, url, body, signal) {
-  await ensureFreshToken();
   const h = {'Content-Type': 'application/json'};
   if (token) h['Authorization'] = 'Bearer ' + token;
   const r = await fetch(url, {method, headers: h, body: body ? JSON.stringify(body) : undefined, signal});
   const text = await r.text();
   let d; try { d = JSON.parse(text); } catch { throw new Error(`서버 오류 (${r.status})`); }
-  if (!r.ok) throw new Error(d.error || d.detail || `서버 오류 (${r.status})`);
+  if (!r.ok) throw new Error(d.detail || `서버 오류 (${r.status})`);
+  return d;
+}
+
+async function apiFetchForm(url, body) {
+  const r = await fetch(url, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+    body: new URLSearchParams(body)
+  });
+  const text = await r.text();
+  let d; try { d = JSON.parse(text); } catch { throw new Error(`서버 오류 (${r.status})`); }
+  if (!r.ok) throw new Error(d.detail || `서버 오류 (${r.status})`);
   return d;
 }
 
@@ -105,20 +81,9 @@ async function doLogin() {
   const email = v('a-email'), pw = v('a-pw');
   if (!email || !pw) return toast('이메일과 비밀번호를 입력해주세요', 'err');
   try {
-    const r = await fetch(`${AUTH_URL}:signInWithPassword?key=${FIREBASE_WEB_API_KEY}`, {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({email, password: pw, returnSecureToken: true}),
-    });
-    const d = await r.json();
-    if (!r.ok) throw new Error(d.error?.message || '로그인 실패');
-    token = d.idToken;
-    await chrome.storage.local.set({
-      bw_token:     d.idToken,
-      bw_email:     email,
-      bw_refresh:   d.refreshToken,
-      bw_token_exp: Date.now() + parseInt(d.expiresIn, 10) * 1000,
-    });
+    const d = await apiFetchForm(ENDPOINTS.login, {username: email, password: pw});
+    token = d.access_token;
+    await chrome.storage.local.set({bw_token: token, bw_email: email});
     $('status-text').textContent = email;
     showPage('main');
     toast('로그인되었습니다', 'ok');
@@ -128,36 +93,19 @@ async function doLogin() {
 async function doSignup() {
   const email = v('a-email'), pw = v('a-pw');
   if (!email || !pw) return toast('이메일과 비밀번호를 입력해주세요', 'err');
-  if (pw.length < 6) return toast('비밀번호 6자 이상 필요', 'err');
   try {
-    const r = await fetch(`${AUTH_URL}:signUp?key=${FIREBASE_WEB_API_KEY}`, {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({email, password: pw, returnSecureToken: true}),
-    });
-    const d = await r.json();
-    if (!r.ok) {
-      const msg = d.error?.message || '';
-      if (msg === 'EMAIL_EXISTS') throw new Error('이미 사용 중인 이메일입니다');
-      if (msg === 'WEAK_PASSWORD') throw new Error('비밀번호 6자 이상 필요');
-      throw new Error('회원가입 실패: ' + msg);
-    }
-    token = d.idToken;
-    await chrome.storage.local.set({
-      bw_token:     d.idToken,
-      bw_email:     email,
-      bw_refresh:   d.refreshToken,
-      bw_token_exp: Date.now() + parseInt(d.expiresIn, 10) * 1000,
-    });
+    const d = await apiFetch('POST', ENDPOINTS.signup, {email, password: pw});
+    token = d.access_token;
+    await chrome.storage.local.set({bw_token: token, bw_email: email});
     $('status-text').textContent = email;
     showPage('main');
-    toast('회원가입 완료!', 'ok');
+    toast('회원가입 완료', 'ok');
   } catch(e) { toast(e.message, 'err'); }
 }
 
 async function doLogout() {
   token = '';
-  await chrome.storage.local.remove(['bw_token','bw_email','bw_refresh','bw_token_exp']);
+  await chrome.storage.local.remove(['bw_token', 'bw_email']);
   $('status-text').textContent = '오늘의블로그 AI 원고 자동 생성';
   showPage('auth');
 }
@@ -233,11 +181,9 @@ async function generate() {
   await chrome.storage.local.remove('bw_abort');
 
   try {
-    // 1. 네이버 블로그 작성 탭 열기
     showLoading('네이버 블로그 작성 탭 열기...');
     const writeTab = await openWriteTab();
 
-    // 2. AI 원고 생성
     showLoading('Gemini AI 원고 생성 중... (30~60초)');
     const d = await apiFetch('POST', ENDPOINTS.generate, {
       topic,
@@ -245,13 +191,12 @@ async function generate() {
       job_type: v('f-type') || '정보/설명글',
       target_audience: v('f-aud') || '60대 성인',
       extra_instructions: v('f-extra') || '',
+      generate_image: false,
     }, _abortCtrl.signal);
 
-    // 3. 커스텀 제목 우선 적용
     const customTitle = v('f-title');
     if (customTitle) d.title = customTitle;
 
-    // 4. 미리보기 표시
     _pendingManuscript = {data: d, tabId: writeTab.id};
     showPreview(d);
 
@@ -260,9 +205,9 @@ async function generate() {
       // stopGenerate()에서 처리
     } else {
       showPage('main');
-      if (e.message.includes('401') || e.message.includes('인증')) {
+      if (e.message.includes('401')) {
         token = '';
-        await chrome.storage.local.remove(['bw_token','bw_email','bw_refresh','bw_token_exp']);
+        await chrome.storage.local.remove(['bw_token','bw_email']);
         showPage('auth');
         toast('세션 만료 — 다시 로그인해주세요', 'err');
       } else {

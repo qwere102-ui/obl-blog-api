@@ -6,9 +6,7 @@
   "permissions": ["activeTab", "scripting", "storage", "clipboardWrite", "tabs", "sidePanel"],
   "host_permissions": [
     "*://blog.naver.com/*",
-    "https://identitytoolkit.googleapis.com/*",
-    "https://securetoken.googleapis.com/*",
-    "https://*.cloudfunctions.net/*"
+    "https://obl-blog-api.onrender.com/*"
   ],
   "background": {
     "service_worker": "background.js"

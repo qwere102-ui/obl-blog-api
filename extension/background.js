@@ -3,9 +3,7 @@ chrome.runtime.onInstalled.addListener(() => {
   chrome.sidePanel.setPanelBehavior({openPanelOnActionClick: true});
 });
 
-// ── Firebase 설정 (sidepanel.js와 동일하게 맞춰주세요) ───────
-const FIREBASE_PROJECT_ID = 'autoblog-9d026';
-const CF_BASE = `https://us-central1-${FIREBASE_PROJECT_ID}.cloudfunctions.net`;
+const BACKEND = 'https://obl-blog-api.onrender.com';
 
 // 서비스 워커 keepalive — 이미지 생성 중 종료 방지
 let _kaTimer = null;
@@ -44,7 +42,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     startKeepalive();
     console.log('[오블] 이미지 생성 시작:', msg.prompt?.slice(0, 60));
 
-    fetch(`${CF_BASE}/bw_generate_image`, {
+    fetch(`${BACKEND}/manuscripts/generate-image`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -53,14 +51,30 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       body: JSON.stringify({prompt: msg.prompt}),
     })
     .then(r => {
-      if (!r.ok) return r.json().then(e => { throw new Error(e.error || 'API 오류 ' + r.status); });
+      if (!r.ok) return r.json().then(e => { throw new Error(e.detail || 'API 오류 ' + r.status); });
       return r.json();
     })
     .then(data => {
       if (!data.url) throw new Error('이미지 URL 없음');
-      stopKeepalive();
-      // Cloud Functions는 항상 base64 data URL 반환
-      sendResponse({ok: true, data: data.url});
+      console.log('[오블] 이미지 획득:', data.url.slice(0, 60));
+
+      if (data.url.startsWith('data:')) {
+        stopKeepalive();
+        sendResponse({ok: true, data: data.url});
+        return;
+      }
+
+      // 외부 URL → fetch → base64
+      fetch(data.url)
+        .then(r => { if (!r.ok) throw new Error('이미지 다운로드 실패 ' + r.status); return r.blob(); })
+        .then(blob => {
+          if (blob.size === 0) throw new Error('이미지 데이터 비어있음');
+          const reader = new FileReader();
+          reader.onload  = () => { stopKeepalive(); sendResponse({ok: true,  data: reader.result}); };
+          reader.onerror = () => { stopKeepalive(); sendResponse({ok: false, error: 'FileReader 오류'}); };
+          reader.readAsDataURL(blob);
+        })
+        .catch(e => { stopKeepalive(); sendResponse({ok: false, error: e.message}); });
     })
     .catch(e => {
       stopKeepalive();
