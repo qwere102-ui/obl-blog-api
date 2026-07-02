@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>오블 — 오늘의블로그</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --primary:#2563eb;--grad:linear-gradient(135deg,#667eea,#764ba2);
+  --border:#e2e8f0;--muted:#64748b;--bg:#f8fafc;
+  --error:#ef4444;--success:#10b981;
+}
+html,body{
+  height:100%;
+  font-family:-apple-system,'Apple SD Gothic Neo',sans-serif;
+  font-size:13px;color:#1e293b;background:#fff;
+  display:flex;flex-direction:column;
+}
+/* ── 헤더 ── */
+.header{
+  background:var(--grad);color:#fff;padding:14px 16px;
+  display:flex;align-items:center;justify-content:space-between;flex-shrink:0;
+}
+.header h1{font-size:15px;font-weight:800;letter-spacing:-.3px}
+.header .sub{font-size:11px;opacity:.8;margin-top:2px}
+/* ── 스크롤 영역 ── */
+.scroll{flex:1;overflow-y:auto;overflow-x:hidden}
+/* ── 폼 ── */
+.box{padding:14px 16px}
+.fg{margin-bottom:11px}
+.fg label{display:block;font-size:10px;font-weight:700;color:var(--muted);margin-bottom:4px;text-transform:uppercase;letter-spacing:.04em}
+.fc{width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:13px;outline:none;font-family:inherit;background:#fff;color:#1e293b;}
+.fc:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(37,99,235,.1)}
+select.fc{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center;padding-right:28px;cursor:pointer}
+textarea.fc{resize:vertical;min-height:56px}
+/* ── 버튼 ── */
+.btn{width:100%;padding:11px;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;transition:all .18s;}
+.btn-primary{background:var(--grad);color:#fff}
+.btn-primary:hover{opacity:.88}
+.btn-primary:disabled{opacity:.45;cursor:not-allowed}
+.btn-ghost{background:var(--bg);border:1.5px solid var(--border);color:#374151}
+.btn-ghost:hover{background:#f1f5f9}
+.btn-link{background:none;color:var(--primary);text-decoration:underline;font-size:12px;cursor:pointer;border:none;padding:0;font-family:inherit}
+.mt6{margin-top:6px}.mt10{margin-top:10px}
+/* ── 구분선 / 힌트 ── */
+.divider{height:1px;background:var(--border);margin:12px 0}
+.hint{font-size:11px;color:var(--muted);margin-top:5px;line-height:1.6;text-align:center}
+/* ── 경고 ── */
+.warn{background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:10px 12px;margin-bottom:12px;font-size:11px;color:#92400e;line-height:1.6;display:none}
+/* ── 로딩 ── */
+.loading{display:none;flex-direction:column;align-items:center;justify-content:center;padding:48px 20px;gap:14px;}
+.loading.on{display:flex}
+.spin{width:36px;height:36px;border:3px solid var(--border);border-top-color:var(--primary);border-radius:50%;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.loading-txt{font-size:14px;color:#374151;font-weight:700;text-align:center}
+.loading-sub{font-size:11px;color:var(--muted);text-align:center;line-height:1.6}
+.loading-step{font-size:12px;color:var(--primary);font-weight:600;text-align:center;min-height:18px}
+.btn-stop{
+  margin-top:4px;padding:8px 24px;border:1.5px solid var(--error);border-radius:8px;
+  background:#fff;color:var(--error);font-size:12px;font-weight:700;
+  cursor:pointer;font-family:inherit;transition:all .15s;
+}
+.btn-stop:hover{background:#fef2f2}
+/* ── 제목 추천 ── */
+.title-row{display:flex;gap:6px;align-items:stretch}
+.title-row .fc{flex:1}
+.btn-sug{
+  flex-shrink:0;padding:0 11px;border:1.5px solid var(--border);
+  border-radius:7px;background:var(--bg);color:#374151;
+  font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;
+  font-family:inherit;transition:all .15s;
+}
+.btn-sug:hover{background:#f1f5f9;border-color:#cbd5e1}
+.btn-sug:disabled{opacity:.4;cursor:not-allowed}
+.sug-box{margin-top:7px;display:flex;flex-direction:column;gap:5px}
+.sug-item{
+  padding:8px 10px;border:1.5px solid var(--border);border-radius:7px;
+  font-size:11px;line-height:1.5;cursor:pointer;background:#fff;
+  color:#1e293b;transition:all .15s;word-break:keep-all;
+}
+.sug-item:hover{border-color:var(--primary);background:#eff6ff;color:var(--primary)}
+.sug-item.selected{border-color:var(--primary);background:#eff6ff;color:var(--primary);font-weight:700}
+.sug-loading{font-size:11px;color:var(--muted);text-align:center;padding:8px 0}
+/* ── 미리보기 화면 ── */
+.preview-label{font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px}
+.preview-title-box{background:#eff6ff;border:1.5px solid #bfdbfe;border-radius:8px;padding:10px 12px;font-size:13px;font-weight:700;color:#1e40af;margin-bottom:12px;word-break:keep-all}
+.preview-body-box{background:var(--bg);border:1.5px solid var(--border);border-radius:8px;padding:10px 12px;font-size:12px;color:#374151;margin-bottom:12px;max-height:140px;overflow-y:auto;line-height:1.7;word-break:keep-all;white-space:pre-wrap}
+.preview-meta{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap}
+.preview-badge{background:#f0fdf4;border:1px solid #bbf7d0;border-radius:20px;padding:3px 10px;font-size:11px;font-weight:700;color:#15803d}
+.preview-tag-box{background:var(--bg);border:1.5px solid var(--border);border-radius:8px;padding:8px 12px;font-size:11px;color:#2563eb;margin-bottom:14px;max-height:80px;overflow-y:auto;line-height:1.9;word-break:break-all}
+/* ── 완료 화면 ── */
+.done-wrap{text-align:center;padding:32px 20px}
+.done-icon{font-size:52px;margin-bottom:14px}
+.done-title{font-size:16px;font-weight:800;margin-bottom:8px}
+.done-gen-title{font-size:12px;color:#374151;background:var(--bg);border:1.5px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:14px;line-height:1.5;text-align:left;word-break:keep-all}
+.done-desc{font-size:12px;color:var(--muted);line-height:1.8;margin-bottom:20px}
+/* ── 토스트 ── */
+.toast{position:fixed;bottom:14px;left:50%;transform:translateX(-50%) translateY(60px);background:#1e293b;color:#fff;padding:9px 18px;border-radius:20px;font-size:12px;font-weight:600;transition:all .3s;opacity:0;white-space:nowrap;z-index:999;}
+.toast.on{transform:translateX(-50%) translateY(0);opacity:1}
+.toast.err{background:var(--error)}
+.toast.ok{background:var(--success)}
+/* ── 페이지 전환 ── */
+#page-auth,#page-main,#page-preview,#page-done{display:none}
+#page-auth.on,#page-main.on,#page-preview.on,#page-done.on{display:block}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div>
+    <h1>✍️ 오블</h1>
+    <div class="sub" id="status-text">오늘의블로그 AI 원고 자동 생성</div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<div class="scroll">
+
+  <!-- ── 로그인 ── -->
+  <div id="page-auth">
+    <div class="box">
+      <div class="fg">
+        <label>이메일</label>
+        <input class="fc" id="a-email" type="email" placeholder="이메일 주소"/>
+      </div>
+      <div class="fg">
+        <label>비밀번호</label>
+        <input class="fc" id="a-pw" type="password" placeholder="비밀번호"/>
+      </div>
+      <button class="btn btn-primary" id="btn-login">로그인</button>
+      <div style="text-align:center;margin-top:10px">
+        <button class="btn-link" id="btn-signup-link">계정이 없으신가요? 회원가입</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── 원고 폼 ── -->
+  <div id="page-main">
+    <div class="box">
+      <div class="fg">
+        <label>주제 *</label>
+        <input class="fc" id="f-topic" placeholder="예: 고혈압에 좋은 음식"/>
+      </div>
+      <div class="fg">
+        <label>핵심 키워드 *</label>
+        <input class="fc" id="f-kw" placeholder="예: 고혈압 음식, 혈압 낮추는 법"/>
+      </div>
+      <div class="fg">
+        <label>글 유형</label>
+        <select class="fc" id="f-type">
+          <option value="정보/설명글">정보/설명글</option>
+          <option value="리뷰/후기">리뷰/후기</option>
+          <option value="비교/추천">비교/추천</option>
+          <option value="여행/맛집">여행/맛집</option>
+          <option value="레시피/요리">레시피/요리</option>
+          <option value="제품소개">제품소개</option>
+          <option value="일상/에세이">일상/에세이</option>
+          <option value="뉴스/트렌드">뉴스/트렌드</option>
+        </select>
+      </div>
+      <div class="fg">
+        <label>독자층</label>
+        <input class="fc" id="f-aud" value="60대 성인" placeholder="예: 30대 직장인"/>
+      </div>
+      <div class="fg">
+        <label>블로그 제목 <span style="color:#94a3b8;font-weight:400;font-size:9px">(선택 — 비우면 AI가 자동 생성)</span></label>
+        <div class="title-row">
+          <input class="fc" id="f-title" placeholder="직접 입력하거나 추천 받기"/>
+          <button class="btn-sug" id="btn-suggest">✨ 추천</button>
+        </div>
+        <div id="sug-area" style="display:none">
+          <div id="sug-list" class="sug-box"></div>
+        </div>
+      </div>
+      <div class="fg">
+        <label>추가 지시사항</label>
+        <textarea class="fc" id="f-extra" placeholder="강조할 내용, 포함할 정보 등 자유 입력"></textarea>
+      </div>
+      <button class="btn btn-primary" id="btn-generate">✨ AI 원고 생성 &amp; 블로그 삽입</button>
+      <p class="hint">Gemini AI가 작성 → 네이버 블로그에 자동 삽입<br>약 30~60초 소요</p>
+      <div class="divider"></div>
+      <button class="btn-link" id="btn-logout">로그아웃</button>
+    </div>
+  </div>
+
+  <!-- ── 로딩 ── -->
+  <div class="loading" id="loading">
+    <div class="spin"></div>
+    <div class="loading-txt">AI 원고 생성 중...</div>
+    <div class="loading-sub">잠시만 기다려주세요 (30~60초)</div>
+    <div class="loading-step" id="loading-step"></div>
+    <button class="btn-stop" id="btn-stop">⏹ 생성 중단</button>
+  </div>
+
+  <!-- ── 미리보기 (최종 체크) ── -->
+  <div id="page-preview">
+    <div class="box">
+      <div style="font-size:15px;font-weight:800;margin-bottom:14px">📋 최종 확인</div>
+      <div class="preview-label">생성된 제목</div>
+      <div class="preview-title-box" id="preview-title"></div>
+      <div class="preview-label">본문 미리보기</div>
+      <div class="preview-body-box" id="preview-body"></div>
+      <div class="preview-meta">
+        <span class="preview-badge" id="preview-img-count"></span>
+        <span class="preview-badge" id="preview-tag-count"></span>
+        <span class="preview-badge" id="preview-char-count"></span>
+      </div>
+      <div class="preview-label">해시태그</div>
+      <div class="preview-tag-box" id="preview-tags"></div>
+      <button class="btn btn-primary" id="btn-insert">🚀 네이버 블로그에 삽입하기</button>
+      <button class="btn btn-ghost mt6" id="btn-regenerate">↺ 다시 생성</button>
+    </div>
+  </div>
+
+  <!-- ── 완료 ── -->
+  <div id="page-done">
+    <div class="done-wrap">
+      <div class="done-icon">🚀</div>
+      <div class="done-title">네이버 블로그 삽입 중!</div>
+      <div class="done-gen-title" id="done-title-preview"></div>
+      <div class="done-desc">
+        제목 → 본문 → 이미지 순으로<br>
+        블로그 에디터에 자동 입력하고 있습니다.
+      </div>
+      <button class="btn btn-primary mt6" id="btn-new">✨ 새 원고 생성</button>
+    </div>
+  </div>
+
+</div>
+
+<script src="sidepanel.js"></script>
+</body>
+</html>

@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: obl-blog-api
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: DATABASE_URL
+        sync: false          # Supabase 연결 문자열 — Render 대시보드에서 직접 입력
+      - key: GEMINI_API_KEY
+        sync: false          # Google AI Studio 키
+      - key: LLM_PROVIDER
+        value: gemini
+      - key: IMAGE_PROVIDER
+        value: gemini
+      - key: FREE_MODE
+        value: "True"
+      - key: APP_SECRET
+        generateValue: true  # Render가 자동 생성
+      - key: OPENAI_API_KEY
+        sync: false          # 이미지 폴백용 (선택)

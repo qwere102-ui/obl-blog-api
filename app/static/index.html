@@ -1,0 +1,632 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BlogWriter — AI 블로그 원고 생성</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --primary:#2563eb;--primary-dark:#1d4ed8;--primary-light:#eff6ff;
+  --text:#1e293b;--muted:#64748b;--border:#e2e8f0;--bg:#f8fafc;
+  --success:#10b981;--error:#ef4444;--warn:#f59e0b;
+  --radius:10px;--shadow:0 1px 3px rgba(0,0,0,.1);--shadow-lg:0 10px 25px rgba(0,0,0,.1)
+}
+body{font-family:-apple-system,'Apple SD Gothic Neo','Noto Sans KR',BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+
+/* ── AUTH ── */
+#auth-page{min-height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#667eea,#764ba2)}
+.auth-card{background:#fff;border-radius:16px;padding:40px;width:100%;max-width:420px;box-shadow:var(--shadow-lg)}
+.auth-logo{text-align:center;margin-bottom:28px}
+.auth-logo h1{font-size:26px;font-weight:800;color:var(--primary);margin-bottom:4px}
+.auth-logo p{color:var(--muted);font-size:13px}
+.auth-tabs{display:flex;border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-bottom:22px}
+.auth-tab{flex:1;padding:10px;text-align:center;cursor:pointer;font-size:14px;font-weight:600;color:var(--muted);background:#fff;border:none;transition:all .2s}
+.auth-tab.active{background:var(--primary);color:#fff}
+
+/* ── FORM ELEMENTS ── */
+.fg{margin-bottom:14px}
+.fg label{display:block;font-size:12px;font-weight:700;color:var(--text);margin-bottom:5px;text-transform:uppercase;letter-spacing:.03em}
+.fc{width:100%;padding:10px 13px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;color:var(--text);outline:none;transition:border-color .2s,box-shadow .2s;font-family:inherit}
+.fc:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(37,99,235,.1)}
+textarea.fc{resize:vertical;min-height:76px}
+select.fc{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center;padding-right:32px;appearance:none;cursor:pointer}
+.hint{font-size:11px;color:var(--muted);margin-top:4px}
+.btn-auth{width:100%;padding:12px;border:none;border-radius:8px;font-size:15px;font-weight:700;cursor:pointer;background:var(--primary);color:#fff;transition:background .2s;font-family:inherit}
+.btn-auth:hover{background:var(--primary-dark)}
+.chk{display:flex;align-items:center;gap:8px;padding:11px 13px;border:1.5px solid var(--border);border-radius:8px;cursor:pointer}
+.chk input{width:16px;height:16px;accent-color:var(--primary);cursor:pointer}
+.chk label{font-size:13px;font-weight:500;cursor:pointer;margin:0}
+
+/* ── APP SHELL ── */
+#app-page{display:none;min-height:100vh}
+.navbar{background:#fff;border-bottom:1px solid var(--border);padding:0 24px;height:58px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;box-shadow:var(--shadow)}
+.brand{font-size:19px;font-weight:800;color:var(--primary)}
+.nav-r{display:flex;align-items:center;gap:10px}
+.user-chip{background:var(--primary-light);color:var(--primary);padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.btn-out{background:none;border:1px solid var(--border);color:var(--muted);padding:6px 13px;border-radius:7px;font-size:12px;cursor:pointer;transition:all .2s;font-family:inherit}
+.btn-out:hover{border-color:var(--error);color:var(--error)}
+
+/* ── LAYOUT ── */
+.layout{display:grid;grid-template-columns:360px 1fr;min-height:calc(100vh - 58px)}
+.sidebar{background:#fff;border-right:1px solid var(--border);padding:22px;overflow-y:auto;max-height:calc(100vh - 58px);position:sticky;top:58px}
+.sidebar h2{font-size:15px;font-weight:700;margin-bottom:18px;display:flex;align-items:center;gap:7px}
+.btn-gen{width:100%;padding:14px;border:none;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer;background:linear-gradient(135deg,#667eea,#764ba2);color:#fff;transition:all .2s;display:flex;align-items:center;justify-content:center;gap:7px;margin-top:6px;font-family:inherit}
+.btn-gen:hover{opacity:.9;transform:translateY(-1px)}
+.btn-gen:disabled{opacity:.55;cursor:not-allowed;transform:none}
+.divider{height:1px;background:var(--border);margin:18px 0}
+
+/* ── CONTENT ── */
+.content{padding:24px;overflow-y:auto}
+.ctabs{display:flex;gap:4px;border-bottom:1px solid var(--border);margin-bottom:22px}
+.ctab{padding:9px 18px;font-size:14px;font-weight:600;color:var(--muted);cursor:pointer;border:none;background:none;border-bottom:2px solid transparent;margin-bottom:-1px;transition:all .2s;font-family:inherit}
+.ctab.active{color:var(--primary);border-bottom-color:var(--primary)}
+
+/* ── MANUSCRIPT ── */
+.m-card{background:#fff;border-radius:12px;border:1px solid var(--border);overflow:hidden;box-shadow:var(--shadow)}
+.m-head{padding:20px 22px;border-bottom:1px solid var(--border);background:linear-gradient(135deg,#f0f4ff,#faf5ff)}
+.m-title{font-size:20px;font-weight:700;line-height:1.4;margin-bottom:12px}
+.badges{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+.badge{background:#fff;border:1px solid var(--border);padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600;color:var(--muted)}
+.badge.ok{background:#ecfdf5;border-color:#a7f3d0;color:var(--success)}
+.badge.draft{background:#fffbeb;border-color:#fde68a;color:var(--warn)}
+.review-box{background:#fff;border:1px solid var(--border);border-radius:8px;padding:12px;margin-top:12px;font-size:12px}
+.review-box strong{font-size:13px}
+.m-body{padding:22px;font-size:15px;line-height:2;word-break:keep-all;color:var(--text)}
+.m-body p{margin-bottom:18px}
+.m-body p:last-child{margin-bottom:0}
+.img-block{margin:24px 0;border:1.5px dashed #a5b4fc;border-radius:12px;overflow:hidden;background:#f5f3ff}
+.img-placeholder{padding:16px 20px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.img-marker{display:inline-flex;align-items:center;gap:6px;background:#e0e7ff;color:#4338ca;padding:5px 12px;border-radius:6px;font-size:12px;font-weight:700;white-space:nowrap;flex-shrink:0}
+.img-prompt-text{font-size:12px;color:#6d28d9;flex:1;line-height:1.6;font-style:italic;min-width:0}
+.btn-gen-img{margin-left:auto;padding:6px 14px;background:#7c3aed;color:#fff;border:none;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;font-family:inherit;transition:opacity .2s;flex-shrink:0}
+.btn-gen-img:hover{opacity:.85}
+.btn-gen-img:disabled{opacity:.5;cursor:not-allowed}
+.img-result{width:400px;height:400px;object-fit:cover;display:block;margin:0 auto}
+.img-caption{text-align:center;font-size:11px;color:var(--muted);padding:6px 0 10px}
+.tags{padding:14px 22px;border-top:1px solid var(--border);display:flex;flex-wrap:wrap;gap:6px}
+.tag{background:var(--primary-light);color:var(--primary);padding:3px 10px;border-radius:20px;font-size:12px;font-weight:500}
+.m-actions{padding:14px 22px;border-top:1px solid var(--border);display:flex;gap:8px;flex-wrap:wrap}
+.btn-cp{padding:7px 14px;background:var(--primary-light);color:var(--primary);border:1px solid #bfdbfe;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer;transition:background .2s;font-family:inherit}
+.btn-cp:hover{background:#dbeafe}
+
+/* ── HISTORY ── */
+.h-list{display:flex;flex-direction:column;gap:10px}
+.h-item{background:#fff;border:1.5px solid var(--border);border-radius:10px;padding:15px;cursor:pointer;transition:all .2s}
+.h-item:hover{border-color:var(--primary);box-shadow:0 0 0 3px rgba(37,99,235,.08)}
+.h-title{font-size:14px;font-weight:700;margin-bottom:7px;line-height:1.4}
+.h-meta{display:flex;gap:7px;align-items:center;font-size:11px;color:var(--muted)}
+
+/* ── EMPTY ── */
+.empty{text-align:center;padding:56px 20px;color:var(--muted)}
+.empty svg{margin:0 auto 14px;display:block;opacity:.3}
+.empty p{font-size:15px;font-weight:500;margin-bottom:5px}
+.empty small{font-size:13px;line-height:1.6}
+
+/* ── LOADING ── */
+.loading{position:fixed;inset:0;background:rgba(255,255,255,.88);display:none;flex-direction:column;align-items:center;justify-content:center;z-index:1000;gap:18px}
+.loading.on{display:flex}
+.spin{width:46px;height:46px;border:4px solid var(--border);border-top-color:var(--primary);border-radius:50%;animation:spin .75s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.load-txt{font-size:16px;font-weight:600;text-align:center;line-height:1.6}
+
+/* ── TOAST ── */
+.toast{position:fixed;bottom:22px;right:22px;background:var(--text);color:#fff;padding:11px 18px;border-radius:10px;font-size:13px;font-weight:600;z-index:2000;transform:translateY(80px);opacity:0;transition:all .3s;max-width:320px}
+.toast.on{transform:translateY(0);opacity:1}
+.toast.ok{background:var(--success)}
+.toast.err{background:var(--error)}
+
+/* ── PLAN CARDS ── */
+.plan-card{background:#fff;border:2px solid var(--border);border-radius:14px;padding:24px;position:relative;transition:all .2s}
+.plan-card.popular{border-color:var(--primary)}
+.plan-card:hover{box-shadow:var(--shadow-lg);transform:translateY(-2px)}
+.plan-badge{position:absolute;top:-12px;left:50%;transform:translateX(-50%);background:var(--primary);color:#fff;padding:3px 14px;border-radius:20px;font-size:11px;font-weight:700;white-space:nowrap}
+.plan-name{font-size:18px;font-weight:800;margin-bottom:8px;color:var(--text)}
+.plan-price{font-size:26px;font-weight:800;color:var(--primary);margin-bottom:16px}
+.plan-price span{font-size:14px;font-weight:500;color:var(--muted)}
+.plan-features{list-style:none;margin-bottom:20px;display:flex;flex-direction:column;gap:7px}
+.plan-features li{font-size:13px;color:var(--text)}
+.plan-features li:has(✘){color:var(--muted)}
+.btn-plan{width:100%;padding:10px;border:2px solid var(--border);border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;background:#fff;color:var(--muted);transition:all .2s;font-family:inherit}
+.btn-plan.upgrade{border-color:var(--primary);color:var(--primary);background:var(--primary-light)}
+.btn-plan.upgrade:hover{background:var(--primary);color:#fff}
+.btn-plan.current{background:var(--success);color:#fff;border-color:var(--success);cursor:default}
+
+@media(max-width:768px){.layout{grid-template-columns:1fr}.sidebar{position:static;max-height:none}}
+</style>
+</head>
+<body>
+
+<div class="loading" id="loading">
+  <div class="spin"></div>
+  <div class="load-txt" id="load-txt">처리 중...</div>
+</div>
+<div class="toast" id="toast"></div>
+
+<!-- ── 로그인/회원가입 ── -->
+<div id="auth-page">
+  <div class="auth-card">
+    <div class="auth-logo">
+      <h1>✍️ BlogWriter</h1>
+      <p>AI 기반 네이버 블로그 원고 자동 생성 서비스</p>
+    </div>
+    <div class="auth-tabs">
+      <button class="auth-tab active" onclick="switchAuthTab('login',this)">로그인</button>
+      <button class="auth-tab" onclick="switchAuthTab('signup',this)">회원가입</button>
+    </div>
+
+    <div id="login-form">
+      <div class="fg"><label>이메일</label><input class="fc" id="li-email" type="email" placeholder="이메일 주소" /></div>
+      <div class="fg"><label>비밀번호</label><input class="fc" id="li-pw" type="password" placeholder="비밀번호" onkeydown="if(event.key==='Enter')doLogin()" /></div>
+      <button class="btn-auth" onclick="doLogin()">로그인</button>
+    </div>
+
+    <div id="signup-form" style="display:none">
+      <div class="fg"><label>이메일</label><input class="fc" id="su-email" type="email" placeholder="이메일 주소" /></div>
+      <div class="fg"><label>비밀번호</label><input class="fc" id="su-pw" type="password" placeholder="비밀번호 8자 이상" onkeydown="if(event.key==='Enter')doSignup()" /></div>
+      <div style="background:#f0f4ff;border:1px solid #bfdbfe;border-radius:8px;padding:10px 13px;margin-bottom:14px;font-size:12px;color:#1d4ed8">
+        ✅ 무료 플랜으로 자동 가입됩니다. 가입 후 플랜을 업그레이드할 수 있습니다.
+      </div>
+      <button class="btn-auth" onclick="doSignup()">무료로 시작하기</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── 메인 앱 ── -->
+<div id="app-page">
+  <nav class="navbar">
+    <div class="brand">✍️ BlogWriter</div>
+    <div class="nav-r">
+      <span class="user-chip" id="user-chip"></span>
+      <button class="btn-out" onclick="doLogout()">로그아웃</button>
+    </div>
+  </nav>
+
+  <div class="layout">
+    <!-- 왼쪽 사이드바: 입력 폼 -->
+    <aside class="sidebar">
+      <h2>📝 원고 생성</h2>
+
+      <div class="fg">
+        <label>주제 *</label>
+        <input class="fc" id="f-topic" placeholder="예: 당뇨 환자의 유산소 운동" />
+      </div>
+      <div class="fg">
+        <label>핵심 키워드 *</label>
+        <input class="fc" id="f-kw" placeholder="예: 당뇨 운동" />
+        <p class="hint">네이버 검색 노출에 사용할 대표 키워드</p>
+      </div>
+      <div class="fg">
+        <label>글 유형</label>
+        <select class="fc" id="f-type">
+          <option value="정보/설명글">정보/설명글</option>
+          <option value="리뷰/후기">리뷰/후기</option>
+          <option value="비교/추천">비교/추천</option>
+          <option value="여행/맛집">여행/맛집</option>
+          <option value="레시피/요리">레시피/요리</option>
+          <option value="제품소개">제품소개</option>
+          <option value="일상/에세이">일상/에세이</option>
+          <option value="뉴스/트렌드">뉴스/트렌드</option>
+        </select>
+      </div>
+      <div class="fg">
+        <label>독자층</label>
+        <input class="fc" id="f-aud" value="60대 성인" placeholder="예: 30대 직장인" />
+      </div>
+      <div class="fg">
+        <label>추가 지시사항</label>
+        <textarea class="fc" id="f-extra" placeholder="강조할 내용, 포함할 정보 등을 자유롭게 입력"></textarea>
+      </div>
+      <div class="fg">
+        <div class="chk">
+          <input type="checkbox" id="f-img" />
+          <label for="f-img">썸네일 이미지 자동 생성</label>
+        </div>
+      </div>
+
+      <button class="btn-gen" id="gen-btn" onclick="generate()">
+        <span>✨</span> AI 원고 생성
+      </button>
+
+      <div class="divider"></div>
+      <p class="hint" style="text-align:center">생성에 약 30~60초 소요됩니다</p>
+    </aside>
+
+    <!-- 오른쪽: 결과 -->
+    <main class="content">
+      <div class="ctabs">
+        <button class="ctab active" id="ctab-result" onclick="switchContent('result')">생성 결과</button>
+        <button class="ctab" id="ctab-history" onclick="switchContent('history')">내 원고 목록</button>
+        <button class="ctab" id="ctab-plan" onclick="switchContent('plan')">플랜 업그레이드</button>
+      </div>
+
+      <!-- 생성 결과 -->
+      <div id="pane-result">
+        <div class="empty" id="result-empty">
+          <svg width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5Z"/><polyline points="14 2 14 8 20 8"/>
+            <line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>
+          </svg>
+          <p>아직 생성된 원고가 없습니다</p>
+          <small>왼쪽 폼에 주제와 키워드를 입력하고<br>AI 원고 생성 버튼을 눌러주세요</small>
+        </div>
+        <div id="result-box" style="display:none"></div>
+      </div>
+
+      <!-- 히스토리 -->
+      <div id="pane-history" style="display:none">
+        <div class="h-list" id="h-list">
+          <div class="empty"><p>불러오는 중...</p></div>
+        </div>
+      </div>
+
+      <!-- 플랜 업그레이드 -->
+      <div id="pane-plan" style="display:none">
+        <div id="plan-current-info" style="background:#f0f4ff;border:1px solid #bfdbfe;border-radius:10px;padding:14px 18px;margin-bottom:24px;font-size:13px;color:#1d4ed8;display:flex;align-items:center;gap:8px">
+          <span>⭐</span> <span id="plan-current-text">현재 플랜을 불러오는 중...</span>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:16px">
+
+          <div class="plan-card" id="pc-FREE">
+            <div class="plan-name">FREE</div>
+            <div class="plan-price">무료</div>
+            <ul class="plan-features">
+              <li>✔ 월 3편</li>
+              <li>✔ AI 검토</li>
+              <li>✘ 이미지 생성</li>
+              <li>✘ 자동 발행</li>
+              <li>✘ 네이버 계정 연결</li>
+            </ul>
+            <button class="btn-plan" id="pbtn-FREE" onclick="selectPlan('FREE')">현재 플랜</button>
+          </div>
+
+          <div class="plan-card" id="pc-BASIC">
+            <div class="plan-name">BASIC</div>
+            <div class="plan-price">9,900원<span>/월</span></div>
+            <ul class="plan-features">
+              <li>✔ 월 50편</li>
+              <li>✔ AI 검토</li>
+              <li>✔ 이미지 생성</li>
+              <li>✘ 자동 발행</li>
+              <li>✔ 네이버 계정 1개</li>
+            </ul>
+            <button class="btn-plan upgrade" id="pbtn-BASIC" onclick="selectPlan('BASIC')">업그레이드</button>
+          </div>
+
+          <div class="plan-card popular" id="pc-PRO">
+            <div class="plan-badge">인기</div>
+            <div class="plan-name">PRO</div>
+            <div class="plan-price">29,000원<span>/월</span></div>
+            <ul class="plan-features">
+              <li>✔ 월 300편</li>
+              <li>✔ AI 검토</li>
+              <li>✔ 이미지 생성</li>
+              <li>✔ 자동 발행</li>
+              <li>✔ 네이버 계정 3개</li>
+            </ul>
+            <button class="btn-plan upgrade" id="pbtn-PRO" onclick="selectPlan('PRO')">업그레이드</button>
+          </div>
+
+          <div class="plan-card" id="pc-BUSINESS">
+            <div class="plan-name">BUSINESS</div>
+            <div class="plan-price">79,000원<span>/월</span></div>
+            <ul class="plan-features">
+              <li>✔ 월 무제한</li>
+              <li>✔ AI 검토</li>
+              <li>✔ 이미지 생성</li>
+              <li>✔ 자동 발행</li>
+              <li>✔ 네이버 계정 20개</li>
+            </ul>
+            <button class="btn-plan upgrade" id="pbtn-BUSINESS" onclick="selectPlan('BUSINESS')">업그레이드</button>
+          </div>
+
+        </div>
+      </div>
+    </main>
+  </div>
+</div>
+
+<script>
+let token = localStorage.getItem('bw_token');
+let email = localStorage.getItem('bw_email');
+let manuscripts = [];
+
+// 초기 라우팅
+token ? showApp() : showAuth();
+
+function showAuth() {
+  document.getElementById('auth-page').style.display = 'flex';
+  document.getElementById('app-page').style.display = 'none';
+}
+function showApp() {
+  document.getElementById('auth-page').style.display = 'none';
+  document.getElementById('app-page').style.display = 'block';
+  document.getElementById('user-chip').textContent = email || '';
+  loadHistory();
+}
+
+function switchAuthTab(tab, btn) {
+  document.querySelectorAll('.auth-tab').forEach(t => t.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('login-form').style.display = tab === 'login' ? 'block' : 'none';
+  document.getElementById('signup-form').style.display = tab === 'signup' ? 'block' : 'none';
+}
+
+function switchContent(tab) {
+  ['result','history','plan'].forEach(t => {
+    document.getElementById('ctab-' + t).classList.toggle('active', t === tab);
+    document.getElementById('pane-' + t).style.display = t === tab ? 'block' : 'none';
+  });
+  if (tab === 'history') loadHistory();
+  if (tab === 'plan') loadPlan();
+}
+
+// ── API ─────────────────────────────────────────
+async function api(method, path, body) {
+  const h = {'Content-Type':'application/json'};
+  if (token) h['Authorization'] = 'Bearer ' + token;
+  const r = await fetch(path, {method, headers:h, body: body ? JSON.stringify(body) : undefined});
+  const text = await r.text();
+  let d;
+  try { d = JSON.parse(text); } catch { throw new Error(r.ok ? '응답 파싱 오류' : `서버 오류 (${r.status})`); }
+  if (!r.ok) throw new Error(d.detail || `서버 오류 (${r.status})`);
+  return d;
+}
+async function apiForm(path, body) {
+  const r = await fetch(path, {method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body: new URLSearchParams(body)});
+  const text = await r.text();
+  let d;
+  try { d = JSON.parse(text); } catch { throw new Error(r.ok ? '응답 파싱 오류' : `서버 오류 (${r.status})`); }
+  if (!r.ok) throw new Error(d.detail || `서버 오류 (${r.status})`);
+  return d;
+}
+
+// ── AUTH ─────────────────────────────────────────
+async function doLogin() {
+  const em = v('li-email'), pw = v('li-pw');
+  if (!em || !pw) return toast('이메일과 비밀번호를 입력해주세요', 'err');
+  try {
+    load('로그인 중...');
+    const d = await apiForm('/auth/login', {username:em, password:pw});
+    setToken(d.access_token, em); unload(); showApp(); toast('로그인되었습니다', 'ok');
+  } catch(e) { unload(); toast(e.message, 'err'); }
+}
+async function doSignup() {
+  const em = v('su-email'), pw = v('su-pw');
+  if (!em || !pw) return toast('이메일과 비밀번호를 입력해주세요', 'err');
+  try {
+    load('가입 중...');
+    const d = await api('POST', '/auth/signup', {email:em, password:pw});
+    setToken(d.access_token, em); unload(); showApp(); toast('회원가입이 완료되었습니다', 'ok');
+  } catch(e) { unload(); toast(e.message, 'err'); }
+}
+function doLogout() {
+  token = null; email = null;
+  localStorage.removeItem('bw_token'); localStorage.removeItem('bw_email');
+  showAuth(); toast('로그아웃되었습니다');
+}
+function setToken(t, em) {
+  token = t; email = em;
+  localStorage.setItem('bw_token', t); localStorage.setItem('bw_email', em);
+}
+
+// ── GENERATE ─────────────────────────────────────
+async function generate() {
+  const topic = v('f-topic'), kw = v('f-kw');
+  if (!topic || !kw) return toast('주제와 키워드는 필수입니다', 'err');
+  const btn = document.getElementById('gen-btn');
+  btn.disabled = true;
+  load('AI가 원고를 작성 중입니다...\n약 30~60초 소요됩니다');
+  try {
+    const d = await api('POST', '/manuscripts/generate', {
+      topic, keyword:kw,
+      job_type: v('f-type'),
+      target_audience: v('f-aud') || '60대 성인',
+      extra_instructions: v('f-extra') || '',
+      generate_image: document.getElementById('f-img').checked
+    });
+    unload(); btn.disabled = false;
+    renderManuscript(d);
+    switchContent('result');
+    loadHistory();
+    toast('원고가 생성되었습니다!', 'ok');
+  } catch(e) { unload(); btn.disabled = false; toast(e.message, 'err'); }
+}
+
+// ── RENDER ───────────────────────────────────────
+function renderManuscript(m) {
+  document.getElementById('result-empty').style.display = 'none';
+  const box = document.getElementById('result-box');
+  box.style.display = 'block';
+
+  let rev = {};
+  try { rev = JSON.parse(m.review_json || '{}'); } catch {}
+  const hashtags = rev.hashtags || [];
+  const body = renderBody(m.body || '');
+  const sc = m.status === 'reviewed' ? 'ok' : 'draft';
+  const st = m.status === 'reviewed' ? '✓ 검토 완료' : '초안';
+
+  box.innerHTML = `
+<div class="m-card">
+  <div class="m-head">
+    <div class="m-title">${esc(m.title)}</div>
+    <div class="badges">
+      <span class="badge ${sc}">${st}</span>
+      <span class="badge">${esc(m.job_type)}</span>
+      ${m.thumbnail_url ? '<span class="badge">🖼 이미지 생성됨</span>' : ''}
+    </div>
+    ${rev.score !== undefined ? `
+    <div class="review-box">
+      <div style="font-size:11px;font-weight:700;color:var(--muted);margin-bottom:6px">AI 검토 결과</div>
+      <div style="display:flex;gap:16px;font-size:13px;margin-bottom:${rev.suggestions?.length?'8px':'0'}">
+        <span>점수: <strong>${rev.score}/100</strong></span>
+        ${rev.seo_check ? `<span>SEO: <strong>${esc(rev.seo_check)}</strong></span>` : ''}
+      </div>
+      ${rev.suggestions?.length ? `<div style="font-size:12px;color:var(--muted)">💡 ${rev.suggestions.slice(0,2).map(esc).join(' &middot; ')}</div>` : ''}
+    </div>` : ''}
+  </div>
+  <div class="m-body" id="m-body-content">${body}</div>
+  ${hashtags.length ? `<div class="tags">${hashtags.map(h=>`<span class="tag">#${esc(h.replace(/^#/,''))}</span>`).join('')}</div>` : ''}
+  <div class="m-actions">
+    <button class="btn-cp" onclick="copy('${escA(m.title)}', '제목')">📋 제목 복사</button>
+    <button class="btn-cp" onclick="copyBody()">📋 본문 복사</button>
+    ${hashtags.length ? `<button class="btn-cp" onclick="copyTags()">📋 해시태그 복사</button>` : ''}
+  </div>
+</div>`;
+
+  window._body = m.body || '';
+  window._tags = hashtags;
+}
+
+// ── HISTORY ──────────────────────────────────────
+async function loadHistory() {
+  if (!token) return;
+  try {
+    const list = await api('GET', '/manuscripts/');
+    manuscripts = [...list].reverse();
+    const el = document.getElementById('h-list');
+    if (!manuscripts.length) {
+      el.innerHTML = `<div class="empty"><p>아직 생성한 원고가 없습니다</p><small>왼쪽 폼에서 원고를 생성해보세요</small></div>`;
+      return;
+    }
+    el.innerHTML = manuscripts.map((m,i) => {
+      const sc = m.status === 'reviewed' ? 'ok' : 'draft';
+      const st = m.status === 'reviewed' ? '검토 완료' : '초안';
+      const jt = m.job_type || '정보글';
+      return `
+<div class="h-item" onclick="openHistory(${i})">
+  <div class="h-title">${esc(m.title)}</div>
+  <div class="h-meta">
+    <span class="badge ${sc}">${st}</span>
+    <span class="badge">${esc(jt)}</span>
+  </div>
+</div>`;
+    }).join('');
+  } catch(e) { console.error(e); }
+}
+function openHistory(i) {
+  renderManuscript(manuscripts[i]);
+  switchContent('result');
+}
+
+// ── PLAN ─────────────────────────────────────────
+let currentPlan = 'FREE';
+async function loadPlan() {
+  try {
+    const me = await api('GET', '/auth/me');
+    currentPlan = me.plan;
+    const planNames = {FREE:'무료 (FREE)',BASIC:'베이직 (BASIC)',PRO:'프로 (PRO)',BUSINESS:'비즈니스 (BUSINESS)'};
+    document.getElementById('plan-current-text').textContent =
+      `현재 플랜: ${planNames[me.plan] || me.plan} · 이번 달 생성: ${me.usage_count}편`;
+    ['FREE','BASIC','PRO','BUSINESS'].forEach(p => {
+      const btn = document.getElementById('pbtn-' + p);
+      if (p === me.plan) {
+        btn.textContent = '✓ 현재 플랜'; btn.className = 'btn-plan current';
+      } else {
+        btn.textContent = '업그레이드'; btn.className = 'btn-plan upgrade';
+      }
+    });
+  } catch(e) { console.error(e); }
+}
+function selectPlan(plan) {
+  if (plan === currentPlan) return;
+  toast(`${plan} 플랜 업그레이드 기능은 준비 중입니다.`, '');
+}
+
+// ── COPY ─────────────────────────────────────────
+function copy(text, label) {
+  navigator.clipboard.writeText(text).then(() => toast(label + '을(를) 복사했습니다', 'ok'));
+}
+function copyBody() { copy(window._body || '', '본문'); }
+function copyTags() {
+  const t = (window._tags||[]).map(h=>h.startsWith('#')?h:'#'+h).join(' ');
+  copy(t, '해시태그');
+}
+
+// ── BODY RENDERER ────────────────────────────────
+function renderBody(raw) {
+  let imgCount = 0;
+  // [이미지: prompt] 또는 [이미지] 모두 처리
+  const numbered = raw.replace(/\[이미지(?::\s*([^\]]*))?\]/g, (_, prompt) => {
+    imgCount++;
+    return `\x00IMG${imgCount}|${(prompt||'').trim()}\x00`;
+  });
+
+  const parts = numbered.split(/(\x00IMG\d+\|[^\x00]*\x00)/);
+
+  let html = '';
+  for (let i = 0; i < parts.length; i++) {
+    const part = parts[i];
+    const imgMatch = part.match(/^\x00IMG(\d+)\|([^\x00]*)\x00$/);
+    if (imgMatch) {
+      const num = imgMatch[1];
+      const prompt = imgMatch[2];
+      const safePrompt = prompt.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+      html += `
+<div class="img-block" id="img-block-${num}">
+  <div class="img-placeholder">
+    <span class="img-marker">📷 이미지 ${num}</span>
+    ${prompt ? `<span class="img-prompt-text">${esc(prompt)}</span>` : ''}
+    <button class="btn-gen-img" onclick="generateImage(${num}, '${safePrompt}')">🎨 이미지 생성</button>
+  </div>
+</div>`;
+    } else if (part.trim()) {
+      const paragraphs = part.split(/\n{2,}/).filter(p => p.trim());
+      for (const para of paragraphs) {
+        const escaped = para.trim()
+          .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+          .replace(/\n/g, '<br>');
+        html += `<p>${escaped}</p>`;
+      }
+    }
+  }
+  return html;
+}
+
+async function generateImage(num, prompt) {
+  const block = document.getElementById('img-block-' + num);
+  const btn = block.querySelector('.btn-gen-img');
+  btn.disabled = true;
+  btn.textContent = '⏳ 생성 중...';
+  try {
+    const d = await api('POST', '/manuscripts/generate-image', {prompt});
+    // 이미지 로딩 대기 (Pollinations는 URL 호출 시 생성)
+    block.innerHTML = `
+      <div style="padding:12px;text-align:center;font-size:12px;color:var(--muted)">🎨 이미지 불러오는 중...</div>`;
+    const img = new Image();
+    img.onload = () => {
+      block.innerHTML = `
+        <img class="img-result" src="${d.url}" alt="이미지 ${num}">
+        <div class="img-caption">📷 이미지 ${num}${prompt ? ' — ' + esc(prompt) : ''}</div>`;
+    };
+    img.onerror = () => {
+      block.innerHTML = `<div style="padding:16px;text-align:center;color:var(--error);font-size:13px">이미지 로딩 실패 — 다시 시도해주세요</div>`;
+    };
+    img.src = d.url;
+  } catch(e) {
+    btn.disabled = false;
+    btn.textContent = '🎨 이미지 생성';
+    toast(e.message, 'err');
+  }
+}
+
+// ── UTILS ────────────────────────────────────────
+function v(id) { return document.getElementById(id)?.value?.trim() || ''; }
+function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function escA(s) { return String(s||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'"); }
+
+function load(txt) {
+  document.getElementById('load-txt').innerHTML = (txt||'처리 중...').replace(/\n/g,'<br>');
+  document.getElementById('loading').classList.add('on');
+}
+function unload() { document.getElementById('loading').classList.remove('on'); }
+
+let _tt;
+function toast(msg, type) {
+  const el = document.getElementById('toast');
+  el.textContent = msg; el.className = 'toast on' + (type?' '+type:'');
+  clearTimeout(_tt); _tt = setTimeout(() => el.classList.remove('on'), 3000);
+}
+</script>
+</body>
+</html>

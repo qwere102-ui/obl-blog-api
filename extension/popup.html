@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>BlogWriter</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{--primary:#2563eb;--border:#e2e8f0;--muted:#64748b;--bg:#f8fafc;--error:#ef4444;--success:#10b981}
+body{width:380px;font-family:-apple-system,'Apple SD Gothic Neo',sans-serif;font-size:13px;color:#1e293b;background:#fff}
+
+.header{background:linear-gradient(135deg,#667eea,#764ba2);color:#fff;padding:14px 16px;display:flex;align-items:center;justify-content:space-between}
+.header h1{font-size:15px;font-weight:800}
+.header .status{font-size:11px;opacity:.85}
+
+.auth-box{padding:16px}
+.fg{margin-bottom:10px}
+.fg label{display:block;font-size:11px;font-weight:700;color:var(--muted);margin-bottom:4px;text-transform:uppercase;letter-spacing:.03em}
+.fc{width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:13px;outline:none;font-family:inherit}
+.fc:focus{border-color:var(--primary);box-shadow:0 0 0 2px rgba(37,99,235,.1)}
+select.fc{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center;padding-right:28px;cursor:pointer}
+textarea.fc{resize:none;height:56px}
+
+.btn{width:100%;padding:10px;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;transition:all .2s}
+.btn-primary{background:linear-gradient(135deg,#667eea,#764ba2);color:#fff}
+.btn-primary:hover{opacity:.9}
+.btn-primary:disabled{opacity:.5;cursor:not-allowed}
+.btn-insert{background:var(--success);color:#fff;margin-top:8px}
+.btn-insert:hover{opacity:.9}
+.btn-insert:disabled{opacity:.5;cursor:not-allowed}
+.btn-link{background:none;color:var(--primary);text-decoration:underline;font-size:12px;cursor:pointer;border:none;padding:0;font-family:inherit}
+
+.divider{height:1px;background:var(--border);margin:12px 0}
+.hint{font-size:11px;color:var(--muted);margin-top:4px;line-height:1.5;text-align:center}
+
+.result-box{padding:0 16px 16px}
+.result-title{font-size:14px;font-weight:700;margin-bottom:6px;line-height:1.4;color:#1e293b}
+.result-body{font-size:12px;line-height:1.7;color:#374151;max-height:180px;overflow-y:auto;border:1px solid var(--border);border-radius:7px;padding:10px;white-space:pre-wrap;word-break:keep-all;background:var(--bg)}
+.result-meta{display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap}
+.badge{background:#eff6ff;color:var(--primary);padding:2px 8px;border-radius:12px;font-size:10px;font-weight:700}
+
+.toast{position:fixed;bottom:12px;left:50%;transform:translateX(-50%) translateY(60px);background:#1e293b;color:#fff;padding:8px 16px;border-radius:8px;font-size:12px;font-weight:600;transition:all .3s;opacity:0;white-space:nowrap;z-index:999}
+.toast.on{transform:translateX(-50%) translateY(0);opacity:1}
+.toast.err{background:var(--error)}
+.toast.ok{background:var(--success)}
+
+.loading{display:none;text-align:center;padding:24px;color:var(--muted);font-size:12px}
+.loading.on{display:block}
+.spin{display:inline-block;width:28px;height:28px;border:3px solid var(--border);border-top-color:var(--primary);border-radius:50%;animation:spin .7s linear infinite;margin-bottom:10px}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+.server-warn{background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:10px 12px;margin:0 0 12px;font-size:11px;color:#92400e;line-height:1.6;display:none}
+
+#page-auth,#page-main,#page-result,#page-done{display:none}
+#page-auth.on,#page-main.on,#page-result.on,#page-done.on{display:block}
+.done-box{padding:24px 20px;text-align:center}
+.done-icon{font-size:40px;margin-bottom:12px}
+.done-title{font-size:15px;font-weight:800;margin-bottom:6px;color:#1e293b}
+.done-desc{font-size:12px;color:var(--muted);line-height:1.7;margin-bottom:16px}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>✍️ BlogWriter</h1>
+  <span class="status" id="status-text"></span>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<!-- 로그인 -->
+<div id="page-auth">
+  <div class="auth-box">
+    <div id="server-warn" class="server-warn">
+      ⚠️ 서버에 연결할 수 없습니다. 서버 주소를 확인해주세요.
+    </div>
+    <div class="fg"><label>이메일</label><input class="fc" id="a-email" type="email" placeholder="이메일 주소"/></div>
+    <div class="fg"><label>비밀번호</label><input class="fc" id="a-pw" type="password" placeholder="비밀번호"/></div>
+    <button class="btn btn-primary" id="btn-login">로그인</button>
+    <div style="text-align:center;margin-top:8px">
+      <button class="btn-link" id="btn-signup-link">계정이 없으신가요? 회원가입</button>
+    </div>
+  </div>
+</div>
+
+<!-- 원고 생성 폼 -->
+<div id="page-main">
+  <div class="auth-box" style="padding-bottom:0">
+    <div class="fg"><label>주제 *</label><input class="fc" id="f-topic" placeholder="예: 고혈압에 좋은 음식"/></div>
+    <div class="fg"><label>핵심 키워드 *</label><input class="fc" id="f-kw" placeholder="예: 고혈압 음식"/></div>
+    <div class="fg">
+      <label>글 유형</label>
+      <select class="fc" id="f-type">
+        <option value="정보/설명글">정보/설명글</option>
+        <option value="리뷰/후기">리뷰/후기</option>
+        <option value="비교/추천">비교/추천</option>
+        <option value="여행/맛집">여행/맛집</option>
+        <option value="레시피/요리">레시피/요리</option>
+        <option value="제품소개">제품소개</option>
+        <option value="일상/에세이">일상/에세이</option>
+        <option value="뉴스/트렌드">뉴스/트렌드</option>
+      </select>
+    </div>
+    <div class="fg"><label>독자층</label><input class="fc" id="f-aud" value="60대 성인" placeholder="예: 30대 직장인"/></div>
+    <div class="fg"><label>추가 지시사항</label><textarea class="fc" id="f-extra" placeholder="강조할 내용 등 자유 입력"></textarea></div>
+    <button class="btn btn-primary" id="btn-generate">✨ AI 원고 생성</button>
+    <p class="hint">약 30~60초 소요됩니다</p>
+  </div>
+  <div class="auth-box" style="padding-top:8px">
+    <div class="divider"></div>
+    <button class="btn-link" id="btn-logout">로그아웃</button>
+  </div>
+</div>
+
+<!-- 완료 -->
+<div id="page-done">
+  <div class="done-box">
+    <div class="done-icon">📝</div>
+    <div class="done-title">네이버 블로그에 삽입 중...</div>
+    <div class="done-desc">열린 블로그 탭에서 제목, 본문, 이미지를<br>순서대로 자동 입력하고 있습니다.</div>
+    <button class="btn" id="btn-back" style="background:var(--bg);border:1.5px solid var(--border)">← 다시 생성</button>
+  </div>
+</div>
+
+<!-- 로딩 -->
+<div class="loading" id="loading">
+  <div class="spin"></div>
+  <div>AI가 원고를 작성 중입니다...</div>
+</div>
+
+<!-- 결과 -->
+<div id="page-result">
+  <div class="result-box">
+    <div class="result-meta" id="r-meta"></div>
+    <div class="result-title" id="r-title"></div>
+    <div class="result-body" id="r-body"></div>
+    <button class="btn btn-insert" id="btn-insert">📋 네이버 블로그에 삽입</button>
+    <button class="btn" id="btn-back" style="background:var(--bg);border:1.5px solid var(--border);margin-top:6px">← 다시 생성</button>
+  </div>
+</div>
+
+<script src="popup.js"></script>
+</body>
+</html>
